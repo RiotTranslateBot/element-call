@@ -28,6 +28,7 @@ import { CallFeed } from "matrix-js-sdk/src/webrtc/callFeed";
 import { RoomMember } from "matrix-js-sdk/src/models/room-member";
 
 import { usePageUnload } from "./usePageUnload";
+import { ElementWidgetActions, widget } from "../widget";
 
 export interface UseGroupCallReturnType {
   state: GroupCallState;
@@ -302,11 +303,29 @@ export function useGroupCall(groupCall: GroupCall): UseGroupCallReturnType {
   const toggleScreensharing = useCallback(() => {
     updateState({ requestingScreenshare: true });
 
-    groupCall
-      .setScreensharingEnabled(!groupCall.isScreensharing(), { audio: true })
-      .then(() => {
+    if (groupCall.isScreensharing()) {
+      groupCall.setScreensharingEnabled(false).then(() => {
         updateState({ requestingScreenshare: false });
       });
+    } else {
+      widget.api.transport
+        .send(ElementWidgetActions.Screenshare, {})
+        .then((reply) => {
+          if (reply.failed) {
+            updateState({ requestingScreenshare: false });
+            return;
+          }
+
+          groupCall
+            .setScreensharingEnabled(true, {
+              audio: true,
+              desktopCapturerSourceId: reply.desktopCapturerSourceId,
+            })
+            .then(() => {
+              updateState({ requestingScreenshare: false });
+            });
+        });
+    }
   }, [groupCall]);
 
   useEffect(() => {
